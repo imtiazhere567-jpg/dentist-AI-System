@@ -93,9 +93,30 @@ export async function ensureDb() {
   global.__dbLoadedAt = Date.now();
 }
 
-/** Wait for queued remote writes. Call before a request handler returns. */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
+}
+
+/** Wait for queued remote writes (bounded — a stuck write never blocks a page). */
 export async function flushDb() {
-  if (global.__dbPending) await global.__dbPending;
+  if (!global.__dbPending) return;
+  try {
+    await withTimeout(global.__dbPending, 20_000, "db flush");
+  } catch (e) {
+    global.__dbLastSaveError = (e as Error).message;
+    console.error("[db]", (e as Error).message);
+  }
+}
+
+/** Force a write now and report what happened (used by /api/health?write=1). */
+export async function dbWriteTest() {
+  const t0 = Date.now();
+  save();
+  await flushDb();
+  return { ms: Date.now() - t0, error: global.__dbLastSaveError ?? null };
 }
 
 export function isRemoteDb() {
@@ -128,11 +149,16 @@ function save() {
         try {
           while (global.__dbDirty) {
             global.__dbDirty = false;
-            const snapshot = JSON.parse(JSON.stringify(load())); // detached plain copy
+            const snapshot = JSON.stringify(load()); // detached plain copy
             await ensureTable();
             const s = sql();
-            await s`insert into app_documents (key, value, updated_at) values (${DOC_KEY}, ${s.json(snapshot)}, now())
-                    on conflict (key) do update set value = excluded.value, updated_at = now()`;
+            // pass as text and cast in SQL — avoids driver-side json re-encoding
+            await withTimeout(
+              s`insert into app_documents (key, value, updated_at) values (${DOC_KEY}, cast(${snapshot} as jsonb), now())
+                on conflict (key) do update set value = excluded.value, updated_at = now()`,
+              15_000,
+              "db write",
+            );
             global.__dbLastSaveError = null;
           }
         } catch (e) {
