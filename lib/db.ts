@@ -85,7 +85,10 @@ export async function ensureDb() {
   if (global.__localdb && global.__dbLoadedAt && Date.now() - global.__dbLoadedAt < 1500) return;
   await ensureTable();
   const rows = await sql()`select value from app_documents where key = ${DOC_KEY}`;
-  const doc = (rows[0]?.value as Partial<DB> | undefined) ?? {};
+  let raw: unknown = rows[0]?.value;
+  // tolerate a row that was stored as a JSON string
+  if (typeof raw === "string") { try { raw = JSON.parse(raw); } catch { raw = {}; } }
+  const doc = (raw && typeof raw === "object" ? raw : {}) as Partial<DB>;
   global.__localdb = { ...EMPTY, ...doc };
   global.__dbLoadedAt = Date.now();
 }
@@ -125,10 +128,11 @@ function save() {
         try {
           while (global.__dbDirty) {
             global.__dbDirty = false;
-            const snapshot = JSON.stringify(load());
+            const snapshot = JSON.parse(JSON.stringify(load())); // detached plain copy
             await ensureTable();
-            await sql()`insert into app_documents (key, value, updated_at) values (${DOC_KEY}, ${snapshot}::jsonb, now())
-                        on conflict (key) do update set value = excluded.value, updated_at = now()`;
+            const s = sql();
+            await s`insert into app_documents (key, value, updated_at) values (${DOC_KEY}, ${s.json(snapshot)}, now())
+                    on conflict (key) do update set value = excluded.value, updated_at = now()`;
             global.__dbLastSaveError = null;
           }
         } catch (e) {
