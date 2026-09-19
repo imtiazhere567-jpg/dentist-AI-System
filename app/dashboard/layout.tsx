@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { after } from "next/server";
 import { Globe, LogOut } from "lucide-react";
 import { NavLink, type NavIcon } from "@/components/dashboard/NavLink";
 import { getSettings } from "@/lib/settings";
@@ -17,9 +18,11 @@ const links: { href: string; label: string; icon: NavIcon }[] = [
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   await ensureDb();
   seedIfEmpty();
-  // opportunistically run expired follow-ups whenever staff open the dashboard
-  await runDueFollowups().catch(() => {});
-  await flushDb();
+  // expired follow-ups + persisting writes happen after the response is sent, so pages render instantly
+  after(async () => {
+    await runDueFollowups().catch(() => {});
+    await flushDb();
+  });
   const settings = await getSettings();
   const initials = settings.clinic_name
     .split(" ")

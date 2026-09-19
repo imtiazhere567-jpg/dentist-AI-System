@@ -37,11 +37,36 @@ declare global {
   var __dbWarned: boolean | undefined;
   // eslint-disable-next-line no-var
   var __pgClient: ReturnType<typeof postgres> | undefined;
+  // eslint-disable-next-line no-var
+  var __dbDirty: boolean | undefined;
+  // eslint-disable-next-line no-var
+  var __dbLastSaveError: string | null | undefined;
 }
 
 /** One pooled client per instance. `prepare:false` is required for Supabase's transaction pooler. */
 function sql() {
-  return (global.__pgClient ??= postgres(REMOTE, { prepare: false, max: 1, ssl: "require", idle_timeout: 20, connect_timeout: 15 }));
+  return (global.__pgClient ??= postgres(REMOTE, { prepare: false, max: 1, ssl: "require", idle_timeout: 20, connect_timeout: 10 }));
+}
+
+/** Connectivity + counts, for /api/health. */
+export async function dbHealth() {
+  const doc = global.__localdb;
+  const base = {
+    mode: REMOTE ? "postgres" : "file",
+    host: REMOTE ? REMOTE.replace(/^postgres(ql)?:\/\/[^@]*@/, "").split("/")[0] : null,
+    leads: doc?.leads.length ?? 0,
+    appointments: doc?.appointments.length ?? 0,
+    lastSaveError: global.__dbLastSaveError ?? null,
+  };
+  if (!REMOTE) return { ...base, ok: true };
+  const t0 = Date.now();
+  try {
+    await ensureTable();
+    const rows = await sql()`select jsonb_array_length(value->'leads') as leads, jsonb_array_length(value->'appointments') as appointments, updated_at from app_documents where key = ${DOC_KEY}`;
+    return { ...base, ok: true, ms: Date.now() - t0, stored: rows[0] ?? null };
+  } catch (e) {
+    return { ...base, ok: false, ms: Date.now() - t0, error: (e as Error).message };
+  }
 }
 
 async function ensureTable() {
@@ -90,16 +115,30 @@ function load(): DB {
   return global.__localdb!;
 }
 
+/** Persist the current in-memory document. Remote writes are coalesced: many saves in a row = one write. */
 function save() {
   const doc = load();
   if (REMOTE) {
-    const snapshot = JSON.stringify(doc);
-    const write = async () => {
-      await ensureTable();
-      await sql()`insert into app_documents (key, value, updated_at) values (${DOC_KEY}, ${snapshot}::jsonb, now())
-                  on conflict (key) do update set value = excluded.value, updated_at = now()`;
-    };
-    global.__dbPending = (global.__dbPending ?? Promise.resolve()).then(write, write).catch((e) => console.error("[db] remote save failed", e));
+    global.__dbDirty = true;
+    if (!global.__dbPending) {
+      global.__dbPending = (async () => {
+        try {
+          while (global.__dbDirty) {
+            global.__dbDirty = false;
+            const snapshot = JSON.stringify(load());
+            await ensureTable();
+            await sql()`insert into app_documents (key, value, updated_at) values (${DOC_KEY}, ${snapshot}::jsonb, now())
+                        on conflict (key) do update set value = excluded.value, updated_at = now()`;
+            global.__dbLastSaveError = null;
+          }
+        } catch (e) {
+          global.__dbLastSaveError = (e as Error).message;
+          console.error("[db] remote save failed", e);
+        } finally {
+          global.__dbPending = undefined;
+        }
+      })();
+    }
     return;
   }
   try {
