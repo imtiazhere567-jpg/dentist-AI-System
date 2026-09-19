@@ -65,18 +65,20 @@ lib/site-content.ts          all website copy/images — edit for the real clini
 - Colors, sizes and layout were measured from the reference page (background `#FFF6E4`, purple `#816EE7`, hero 72px, section titles 40px, service titles 56px, body 16–20px).
 - Hero background is the same Vimeo loop; logo, gallery photos and the two pattern bands are loaded from the reference CDN — replace with the clinic's own assets in `lib/site-content.ts`.
 
-## Going live
+## Going live (Vercel + Supabase)
 
-Data is a JSON file (`data/db.json`), so the host needs a **persistent disk**. Any of these work with the included `Dockerfile`:
+Locally the data lives in `data/db.json`. On Vercel the filesystem isn't persistent, so point the app at a Postgres database — **Supabase** (free) is the default:
 
-| Host | How | Persistent data |
-|---|---|---|
-| **Railway** (easiest) | New project → Deploy from GitHub → add a **Volume** mounted at `/app/data` → set env vars | ✓ |
-| **Render** | Web Service (Docker) → add a **Disk** at `/app/data` | ✓ (paid disk) |
-| **Fly.io** | `fly launch` → `fly volumes create data` → mount at `/app/data` | ✓ |
-| **VPS** (Hostinger/DigitalOcean) | `docker run -d -p 80:3000 -v /srv/swish:/app/data --env-file .env swish` behind Nginx/Caddy | ✓ |
-| Vercel | Works, **but the file resets on every deploy** — only for demos, or swap `lib/db.ts` for Postgres (`supabase/schema.sql`) | ✗ |
+1. **Supabase** → New project → once ready: *Project Settings → Database → Connection string → **Transaction** pooler (port 6543)*. Copy it and replace `[YOUR-PASSWORD]`.
+2. **Vercel** → Add New → Project → import the GitHub repo. Environment variables:
+   - `DATABASE_URL` = the Supabase connection string from step 1
+   - `CRON_SECRET` = any random string
+   - `DASHBOARD_PASSWORD` = password for `/dashboard` (leave empty to keep it open)
+   - optional: `ANTHROPIC_API_KEY` (real Claude), `NEXT_PUBLIC_APP_URL` (only if using a custom domain)
+3. **Deploy.** The `app_documents` table is created automatically on first request; example data seeds itself when the database is empty.
 
-Env vars for live: `NEXT_PUBLIC_APP_URL=https://your-domain`, `DASHBOARD_PASSWORD`, `CRON_SECRET` (+ `ANTHROPIC_API_KEY`; Google creds can be pasted in Settings). Add `https://your-domain/api/auth/google/callback` as the redirect URI in Google Cloud.
+Google (Gmail + Calendar): add `https://<your-domain>/api/auth/google/callback` as the redirect URI in Google Cloud, then paste the Client ID/secret in *Dashboard → Settings → Connect Google*.
 
-Cron on a Docker host: hit these URLs with `Authorization: Bearer $CRON_SECRET` — `/api/cron/followups` (every minute), `/api/sync/gmail` (5 min), `/api/sync/calendar` (10 min), `/api/cron/daily-summary` (8am). Railway/Render have built-in cron jobs; on a VPS use `crontab`.
+Cron: Vercel's free plan only allows daily crons (`vercel.json` schedules the 8am summary). For the frequent jobs use a free scheduler such as **cron-job.org**, calling these URLs with header `Authorization: Bearer <CRON_SECRET>`: `/api/cron/followups` (every minute), `/api/sync/gmail` (every 5 min), `/api/sync/calendar` (every 10 min).
+
+Other hosts: a `Dockerfile` is included (Railway / Render / Fly / any VPS). With a persistent disk mounted at `/app/data` you can even skip the database.

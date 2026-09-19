@@ -1,14 +1,14 @@
 /**
  * Document-style database with two backends, same API everywhere:
  *  - local:  ./data/db.json  (no services needed — default)
- *  - live:   Neon Postgres when DATABASE_URL is set (Vercel) — the whole document is stored
- *            in one row and hydrated at the start of every request (see ensureDb / flushDb).
+ *  - live:   Postgres (Supabase / Neon / any) when DATABASE_URL is set — the whole document is
+ *            stored in one row and hydrated at the start of every request (see ensureDb / flushDb).
  * Reads are synchronous from memory; writes update memory immediately and persist behind the scenes.
  */
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
-import { neon } from "@neondatabase/serverless";
+import postgres from "postgres";
 import type { Lead, Message, Appointment, ClinicSettings, GoogleTokens } from "./types";
 
 interface DB {
@@ -35,10 +35,13 @@ declare global {
   var __dbReady: boolean | undefined;
   // eslint-disable-next-line no-var
   var __dbWarned: boolean | undefined;
+  // eslint-disable-next-line no-var
+  var __pgClient: ReturnType<typeof postgres> | undefined;
 }
 
+/** One pooled client per instance. `prepare:false` is required for Supabase's transaction pooler. */
 function sql() {
-  return neon(REMOTE);
+  return (global.__pgClient ??= postgres(REMOTE, { prepare: false, max: 1, ssl: "require", idle_timeout: 20, connect_timeout: 15 }));
 }
 
 async function ensureTable() {
