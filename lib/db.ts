@@ -62,7 +62,7 @@ export async function dbHealth() {
   const t0 = Date.now();
   try {
     await ensureTable();
-    const rows = await sql()`select jsonb_array_length(value->'leads') as leads, jsonb_array_length(value->'appointments') as appointments, updated_at from app_documents where key = ${DOC_KEY}`;
+    const rows = await sql()`select jsonb_typeof(value) as type, jsonb_array_length(case when jsonb_typeof(value) = 'object' then value->'leads' else '[]'::jsonb end) as leads, jsonb_array_length(case when jsonb_typeof(value) = 'object' then value->'appointments' else '[]'::jsonb end) as appointments, updated_at from app_documents where key = ${DOC_KEY}`;
     return { ...base, ok: true, ms: Date.now() - t0, stored: rows[0] ?? null };
   } catch (e) {
     return { ...base, ok: false, ms: Date.now() - t0, error: (e as Error).message };
@@ -109,6 +109,10 @@ export async function flushDb() {
     global.__dbLastSaveError = (e as Error).message;
     console.error("[db]", (e as Error).message);
   }
+}
+
+export function hasPendingWrites() {
+  return Boolean(global.__dbPending);
 }
 
 /** Force a write now and report what happened (used by /api/health?write=1). */

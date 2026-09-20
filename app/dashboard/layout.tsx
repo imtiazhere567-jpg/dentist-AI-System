@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { after } from "next/server";
 import { Globe, LogOut } from "lucide-react";
 import { NavLink, type NavIcon } from "@/components/dashboard/NavLink";
 import { getSettings } from "@/lib/settings";
 import { runDueFollowups } from "@/lib/leads";
 import { seedIfEmpty } from "@/lib/seed";
-import { ensureDb, flushDb } from "@/lib/db";
+import { ensureDb, flushDb, hasPendingWrites } from "@/lib/db";
 
 const links: { href: string; label: string; icon: NavIcon }[] = [
   { href: "/dashboard", label: "Overview", icon: "overview" },
@@ -17,12 +16,10 @@ const links: { href: string; label: string; icon: NavIcon }[] = [
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   await ensureDb();
-  seedIfEmpty();
-  // expired follow-ups + persisting writes happen after the response is sent, so pages render instantly
-  after(async () => {
-    await runDueFollowups().catch(() => {});
-    await flushDb();
-  });
+  const seeded = seedIfEmpty();
+  // expired follow-ups (no-op unless a website lead's wait just ended); writes are coalesced and bounded
+  await runDueFollowups().catch(() => {});
+  if (seeded || hasPendingWrites()) await flushDb();
   const settings = await getSettings();
   const initials = settings.clinic_name
     .split(" ")
