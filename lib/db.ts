@@ -24,6 +24,25 @@ const EMPTY: DB = { leads: [], messages: [], appointments: [], settings: null, g
 const REMOTE = process.env.DATABASE_URL || "";
 const DOC_KEY = "swish";
 
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
+}
+
+/**
+ * All remote queries go through one lock: exactly one query in flight per instance.
+ * Concurrent/pipelined queries on a single connection through Supabase's transaction pooler
+ * were observed to never return (function hung until the 300s limit).
+ */
+let lock: Promise<unknown> = Promise.resolve();
+function withLock<T>(fn: () => Promise<T>, ms: number, label: string): Promise<T> {
+  const run = lock.then(() => withTimeout(fn(), ms, label));
+  lock = run.catch(() => {});
+  return run;
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var __localdb: DB | undefined;
@@ -41,11 +60,40 @@ declare global {
   var __dbDirty: boolean | undefined;
   // eslint-disable-next-line no-var
   var __dbLastSaveError: string | null | undefined;
+  // eslint-disable-next-line no-var
+  var __dbLoading: Promise<void> | undefined;
+  // eslint-disable-next-line no-var
+  var __lastLayoutError: string | null | undefined;
+  // eslint-disable-next-line no-var
+  var __layoutTimings: Record<string, number> | undefined;
 }
 
-/** One pooled client per instance. `prepare:false` is required for Supabase's transaction pooler. */
+/** Record how long a layout step took / whether it failed (surfaced by /api/health). */
+export async function traced<T>(label: string, p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  const t0 = Date.now();
+  try {
+    const v = await withTimeout(p, ms, label);
+    (global.__layoutTimings ??= {})[label] = Date.now() - t0;
+    return v;
+  } catch (e) {
+    (global.__layoutTimings ??= {})[label] = Date.now() - t0;
+    global.__lastLayoutError = `${label}: ${(e as Error).message}`;
+    console.error("[layout]", global.__lastLayoutError);
+    return fallback;
+  }
+}
+
+/** One client per instance. `prepare:false` + `fetch_types:false` are required for Supabase's transaction pooler. */
 function sql() {
-  return (global.__pgClient ??= postgres(REMOTE, { prepare: false, max: 1, ssl: "require", idle_timeout: 20, connect_timeout: 10 }));
+  return (global.__pgClient ??= postgres(REMOTE, {
+    prepare: false,
+    fetch_types: false,
+    max: 1,
+    ssl: "require",
+    idle_timeout: 20,
+    connect_timeout: 10,
+    onnotice: () => {}, // "relation already exists" notices are expected
+  }));
 }
 
 /** Connectivity + counts, for /api/health. */
@@ -57,22 +105,36 @@ export async function dbHealth() {
     leads: doc?.leads.length ?? 0,
     appointments: doc?.appointments.length ?? 0,
     lastSaveError: global.__dbLastSaveError ?? null,
+    lastLayoutError: global.__lastLayoutError ?? null,
+    layoutTimings: global.__layoutTimings ?? null,
   };
   if (!REMOTE) return { ...base, ok: true };
   const t0 = Date.now();
   try {
     await ensureTable();
-    const rows = await sql()`select jsonb_typeof(value) as type, jsonb_array_length(case when jsonb_typeof(value) = 'object' then value->'leads' else '[]'::jsonb end) as leads, jsonb_array_length(case when jsonb_typeof(value) = 'object' then value->'appointments' else '[]'::jsonb end) as appointments, updated_at from app_documents where key = ${DOC_KEY}`;
+    const rows = await withLock(
+      () => sql()`select jsonb_typeof(value) as type, jsonb_array_length(case when jsonb_typeof(value) = 'object' then value->'leads' else '[]'::jsonb end) as leads, jsonb_array_length(case when jsonb_typeof(value) = 'object' then value->'appointments' else '[]'::jsonb end) as appointments, updated_at from app_documents where key = ${DOC_KEY}`,
+      10_000,
+      "health query",
+    );
     return { ...base, ok: true, ms: Date.now() - t0, stored: rows[0] ?? null };
   } catch (e) {
     return { ...base, ok: false, ms: Date.now() - t0, error: (e as Error).message };
   }
 }
 
-async function ensureTable() {
-  if (global.__dbReady) return;
-  await sql()`create table if not exists app_documents (key text primary key, value jsonb not null, updated_at timestamptz not null default now())`;
-  global.__dbReady = true;
+declare global {
+  // eslint-disable-next-line no-var
+  var __dbReadyP: Promise<void> | undefined;
+}
+/** Create the table once per instance (concurrent callers share the same promise). */
+function ensureTable() {
+  if (global.__dbReady) return Promise.resolve();
+  return (global.__dbReadyP ??= withLock(
+    () => sql()`create table if not exists app_documents (key text primary key, value jsonb not null, updated_at timestamptz not null default now())`,
+    10_000,
+    "create table",
+  ).then(() => { global.__dbReady = true; }).finally(() => { global.__dbReadyP = undefined; }));
 }
 
 /**
@@ -83,21 +145,27 @@ async function ensureTable() {
 export async function ensureDb() {
   if (!REMOTE) return;
   if (global.__localdb && global.__dbLoadedAt && Date.now() - global.__dbLoadedAt < 1500) return;
+  // one in-flight hydration per instance (layout + page + API can all call this at once)
+  if (global.__dbLoading) return global.__dbLoading;
+  global.__dbLoading = (async () => {
+    try {
+      await withTimeout(hydrate(), 12_000, "db load");
+    } finally {
+      global.__dbLoading = undefined;
+    }
+  })();
+  return global.__dbLoading;
+}
+
+async function hydrate() {
   await ensureTable();
-  const rows = await sql()`select value from app_documents where key = ${DOC_KEY}`;
+  const rows = await withLock(() => sql()`select value from app_documents where key = ${DOC_KEY}`, 10_000, "load document");
   let raw: unknown = rows[0]?.value;
   // tolerate a row that was stored as a JSON string
   if (typeof raw === "string") { try { raw = JSON.parse(raw); } catch { raw = {}; } }
   const doc = (raw && typeof raw === "object" ? raw : {}) as Partial<DB>;
   global.__localdb = { ...EMPTY, ...doc };
   global.__dbLoadedAt = Date.now();
-}
-
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
-  });
 }
 
 /** Wait for queued remote writes (bounded — a stuck write never blocks a page). */
@@ -155,11 +223,10 @@ function save() {
             global.__dbDirty = false;
             const snapshot = JSON.stringify(load()); // detached plain copy
             await ensureTable();
-            const s = sql();
-            // pass as text and cast in SQL — avoids driver-side json re-encoding
-            await withTimeout(
-              s`insert into app_documents (key, value, updated_at) values (${DOC_KEY}, cast(${snapshot} as jsonb), now())
-                on conflict (key) do update set value = excluded.value, updated_at = now()`,
+            // bind as TEXT first (so the driver never JSON-encodes the string), then cast to jsonb
+            await withLock(
+              () => sql()`insert into app_documents (key, value, updated_at) values (${DOC_KEY}, (${snapshot}::text)::jsonb, now())
+                          on conflict (key) do update set value = excluded.value, updated_at = now()`,
               15_000,
               "db write",
             );
