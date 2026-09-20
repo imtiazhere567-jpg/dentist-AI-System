@@ -23,6 +23,7 @@ const FILE = path.join(process.cwd(), "data", "db.json");
 const EMPTY: DB = { leads: [], messages: [], appointments: [], settings: null, google_tokens: null };
 const REMOTE = process.env.DATABASE_URL || "";
 const DOC_KEY = "swish";
+// table app_kv: { key text, doc text, updated_at } — the document is stored as a plain JSON string
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -113,7 +114,7 @@ export async function dbHealth() {
   try {
     await ensureTable();
     const rows = await withLock(
-      () => sql()`select jsonb_typeof(value) as type, jsonb_array_length(case when jsonb_typeof(value) = 'object' then value->'leads' else '[]'::jsonb end) as leads, jsonb_array_length(case when jsonb_typeof(value) = 'object' then value->'appointments' else '[]'::jsonb end) as appointments, updated_at from app_documents where key = ${DOC_KEY}`,
+      () => sql()`select length(doc) as bytes, updated_at from app_kv where key = ${DOC_KEY}`,
       10_000,
       "health query",
     );
@@ -131,7 +132,7 @@ declare global {
 function ensureTable() {
   if (global.__dbReady) return Promise.resolve();
   return (global.__dbReadyP ??= withLock(
-    () => sql()`create table if not exists app_documents (key text primary key, value jsonb not null, updated_at timestamptz not null default now())`,
+    () => sql()`create table if not exists app_kv (key text primary key, doc text not null, updated_at timestamptz not null default now())`,
     10_000,
     "create table",
   ).then(() => { global.__dbReady = true; }).finally(() => { global.__dbReadyP = undefined; }));
@@ -159,10 +160,10 @@ export async function ensureDb() {
 
 async function hydrate() {
   await ensureTable();
-  const rows = await withLock(() => sql()`select value from app_documents where key = ${DOC_KEY}`, 10_000, "load document");
-  let raw: unknown = rows[0]?.value;
-  // tolerate a row that was stored as a JSON string
-  if (typeof raw === "string") { try { raw = JSON.parse(raw); } catch { raw = {}; } }
+  const rows = await withLock(() => sql()`select doc from app_kv where key = ${DOC_KEY}`, 10_000, "load document");
+  let raw: unknown = {};
+  const text = rows[0]?.doc;
+  if (typeof text === "string") { try { raw = JSON.parse(text); } catch { raw = {}; } }
   const doc = (raw && typeof raw === "object" ? raw : {}) as Partial<DB>;
   global.__localdb = { ...EMPTY, ...doc };
   global.__dbLoadedAt = Date.now();
@@ -223,10 +224,9 @@ function save() {
             global.__dbDirty = false;
             const snapshot = JSON.stringify(load()); // detached plain copy
             await ensureTable();
-            // bind as TEXT first (so the driver never JSON-encodes the string), then cast to jsonb
             await withLock(
-              () => sql()`insert into app_documents (key, value, updated_at) values (${DOC_KEY}, (${snapshot}::text)::jsonb, now())
-                          on conflict (key) do update set value = excluded.value, updated_at = now()`,
+              () => sql()`insert into app_kv (key, doc, updated_at) values (${DOC_KEY}, ${snapshot}, now())
+                          on conflict (key) do update set doc = excluded.doc, updated_at = now()`,
               15_000,
               "db write",
             );
