@@ -4,6 +4,7 @@ import { Sparkles } from "lucide-react";
 import { listLeads } from "@/lib/leads";
 import { leadName } from "@/lib/types";
 import { Card, PageTitle, StatusBadge, PriorityBadge, SourceBadge, Avatar, timeAgo, intentLabel } from "@/components/dashboard/ui";
+import { DeleteLeadButton } from "@/components/dashboard/DeleteLeadButton";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         ) : (
           <ul className="divide-y divide-purple/10">
             {leads.map((l) => (
-              <li key={l.id}>
+              <li key={l.id} className="group relative">
                 <Link prefetch href={`/dashboard/leads/${l.id}`} className="flex items-center gap-4 rounded-2xl px-4 py-4 transition hover:bg-[#F6F3FF]">
                   <Avatar name={leadName(l)} size={44} />
                   <div className="min-w-0 flex-1">
@@ -63,7 +64,11 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     <SourceBadge source={l.source} />
                     <span className="text-[11px] text-muted">{timeAgo(l.created_at)}</span>
                   </div>
+                  <span className="w-8 shrink-0" aria-hidden />
                 </Link>
+                <span className="absolute right-4 top-1/2 -translate-y-1/2">
+                  <DeleteLeadButton id={l.id} name={leadName(l)} />
+                </span>
               </li>
             ))}
           </ul>

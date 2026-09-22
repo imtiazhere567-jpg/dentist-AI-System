@@ -414,6 +414,28 @@ export function writeSettings(patch: Partial<ClinicSettings>, defaults: ClinicSe
 }
 
 /** Wipe leads, messages and appointments (keeps settings and Google tokens). */
+/**
+ * Delete a lead and everything attached to it. Appointments that exist in Google Calendar are
+ * kept (they'd otherwise silently drift out of sync) but unlinked; local-only ones are removed.
+ */
+export function deleteLead(id: string) {
+  const db = load();
+  const lead = db.leads.find((l) => l.id === id);
+  if (!lead) return null;
+  db.leads = db.leads.filter((l) => l.id !== id);
+  db.messages = db.messages.filter((m) => m.lead_id !== id);
+  const keep: Appointment[] = [];
+  let removedAppointments = 0;
+  for (const a of db.appointments) {
+    if (a.lead_id !== id) { keep.push(a); continue; }
+    if (a.calendar_event_id) { keep.push({ ...a, lead_id: null }); continue; } // still in Google Calendar
+    removedAppointments++;
+  }
+  db.appointments = keep;
+  save();
+  return { lead, removedAppointments };
+}
+
 export function clearData() {
   const db = load();
   db.leads = [];

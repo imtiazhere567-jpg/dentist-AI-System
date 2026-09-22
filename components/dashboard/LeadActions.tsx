@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Send, CalendarPlus, Check } from "lucide-react";
+import { Sparkles, Send, CalendarPlus, Check, Trash2 } from "lucide-react";
 import type { Lead, LeadStatus } from "@/lib/types";
 import { SERVICE_OPTIONS } from "@/lib/site-content";
 import { Card } from "./ui";
@@ -12,7 +12,7 @@ type Slot = { iso: string; label: string };
 export function LeadActions({ lead }: { lead: Lead }) {
   const router = useRouter();
   const [reply, setReply] = useState(lead.ai_reply ?? "");
-  const [busy, setBusy] = useState<"" | "ai" | "send" | "book" | "status">("");
+  const [busy, setBusy] = useState<"" | "ai" | "send" | "book" | "status" | "delete">("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // booking
@@ -64,6 +64,16 @@ export function LeadActions({ lead }: { lead: Lead }) {
       if (j.htmlLink) window.open(j.htmlLink, "_blank");
       router.refresh();
     } catch (e) { setMsg({ ok: false, text: (e as Error).message }); } finally { setBusy(""); }
+  }
+
+  async function remove() {
+    if (!confirm(`Delete ${lead.first_name ?? "this lead"} and the whole conversation? This can't be undone.`)) return;
+    setBusy("delete"); setMsg(null);
+    try {
+      await call(`/api/leads/${lead.id}`, undefined, "DELETE");
+      router.push("/dashboard/leads");
+      router.refresh();
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }); setBusy(""); }
   }
 
   async function setStatus(status: LeadStatus) {
@@ -163,6 +173,16 @@ export function LeadActions({ lead }: { lead: Lead }) {
               {s}
             </button>
           ))}
+        </div>
+        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-purple/10 pt-4">
+          <button
+            onClick={remove}
+            disabled={busy !== ""}
+            className="inline-flex items-center gap-2 rounded-full bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+          >
+            <Trash2 size={14} /> {busy === "delete" ? "Deleting…" : "Delete lead"}
+          </button>
+          <span className="text-[11px] text-muted">Removes the lead and its conversation. Calendar appointments stay.</span>
         </div>
       </Card>
     </div>
