@@ -47,7 +47,7 @@ const DANIEL_APPT = workday(2, 15);
 const LEADS: SeedLead[] = [
   // ── 1. Emergency by email → AI auto-replied instantly → back-and-forth → booked ──
   {
-    first: "Marcus", last: "Lee", email: "marcus.lee@example.com", phone: "403-555-0199", source: "email", status: "booked",
+    first: "Marcus", last: "Lee", email: "marcus.lee88@gmail.com", phone: "403-555-0199", source: "email", status: "booked",
     service: "Emergency / Pain", intent: "emergency", priority: "urgent",
     summary: "Cracked molar with pain. AI replied in under a minute; patient confirmed 2:00 PM by email; AI booked it automatically.",
     thread: [
@@ -62,7 +62,7 @@ const LEADS: SeedLead[] = [
 
   // ── 2. Email question → AI draft waiting for approval (shows the approve flow) ──
   {
-    first: "Daniel", last: "Okafor", email: "d.okafor@example.com", phone: "403-555-0177", source: "email", status: "new",
+    first: "Daniel", last: "Okafor", email: "daniel.okafor@outlook.com", phone: "403-555-0177", source: "email", status: "new",
     service: "Dental Work", intent: "dental_work",
     summary: "Lost crown, no pain — wants it looked at this week. Draft ready for approval.",
     thread: [
@@ -73,7 +73,7 @@ const LEADS: SeedLead[] = [
 
   // ── 3. Website new patient → AI draft waiting (visitor didn't self-book yet) ──
   {
-    first: "Emily", last: "Carter", email: "emily.carter@example.com", phone: "403-555-0142", source: "website", status: "new",
+    first: "Emily", last: "Carter", email: "emily.carter@gmail.com", phone: "403-555-0142", source: "website", status: "new",
     service: "The Essentials", intent: "new_patient",
     summary: "New patient near University District, asks about direct billing, wants The Essentials.",
     thread: [
@@ -84,7 +84,7 @@ const LEADS: SeedLead[] = [
 
   // ── 4. Pricing question → replied → patient came back with a follow-up → new draft ──
   {
-    first: "Sofia", last: "Nguyen", email: "sofia.n@example.com", source: "website", status: "new",
+    first: "Sofia", last: "Nguyen", email: "sofia.nguyen21@gmail.com", source: "website", status: "new",
     service: "Invisalign", intent: "price_inquiry",
     summary: "Asked Invisalign cost; we offered a free consult; she now wants Thursday afternoon. Draft ready.",
     thread: [
@@ -97,7 +97,7 @@ const LEADS: SeedLead[] = [
 
   // ── 5. Kids (twins) → replied → parent confirmed → two appointments booked ──
   {
-    first: "Priya", last: "Sharma", email: "priya.s@example.com", phone: "403-555-0164", source: "website", status: "booked",
+    first: "Priya", last: "Sharma", email: "priya.sharma@yahoo.ca", phone: "403-555-0164", source: "website", status: "booked",
     service: "Kids Dentistry", intent: "kids",
     summary: "First visit for 5-year-old twins; booked back-to-back on " + dayLabel(PRIYA_APPT) + " at 9:00 and 9:45 AM.",
     thread: [
@@ -115,7 +115,7 @@ const LEADS: SeedLead[] = [
 
   // ── 6. Website → patient self-booked from the link (no staff work at all) ──
   {
-    first: "Anna", last: "Roberts", email: "anna.r@example.com", source: "website", status: "booked",
+    first: "Anna", last: "Roberts", email: "anna.roberts@shaw.ca", source: "website", status: "booked",
     service: "The Essentials", intent: "cleaning",
     summary: "Returning patient wanted a cleaning; self-booked from her link within 3 minutes.",
     thread: [
@@ -127,7 +127,7 @@ const LEADS: SeedLead[] = [
 
   // ── 7. Insurance question by email → auto-answered (safe question) ──
   {
-    first: "Hannah", last: "Weiss", email: "hannah.w@example.com", source: "email", status: "contacted",
+    first: "Hannah", last: "Weiss", email: "hannah.weiss@telus.net", source: "email", status: "contacted",
     service: "The Essentials", intent: "insurance",
     summary: "Asked if we accept Sun Life; answered automatically.",
     thread: [
@@ -138,7 +138,7 @@ const LEADS: SeedLead[] = [
 
   // ── 8. Chipped tooth → booked → visit completed ──
   {
-    first: "Tom", last: "Baker", email: "tom.b@example.com", phone: "403-555-0133", source: "website", status: "booked",
+    first: "Tom", last: "Baker", email: "tom.baker@icloud.com", phone: "403-555-0133", source: "website", status: "booked",
     service: "Dental Work", intent: "dental_work",
     summary: "Chipped front tooth from hockey; bonded yesterday.",
     thread: [
@@ -150,7 +150,7 @@ const LEADS: SeedLead[] = [
 
   // ── 9. Invisalign consult done ──
   {
-    first: "Lena", last: "Ortiz", email: "lena.o@example.com", source: "website", status: "booked",
+    first: "Lena", last: "Ortiz", email: "lena.ortiz@gmail.com", source: "website", status: "booked",
     service: "Invisalign", intent: "invisalign",
     summary: "Invisalign consultation completed; scan done, treatment plan pending.",
     thread: [
@@ -162,7 +162,7 @@ const LEADS: SeedLead[] = [
 
   // ── 10. Price shopper → lost ──
   {
-    first: "Chloe", last: "Bennett", email: "chloe.b@example.com", source: "email", status: "lost",
+    first: "Chloe", last: "Bennett", email: "chloe.bennett@outlook.com", source: "email", status: "lost",
     service: "Invisalign", intent: "price_inquiry",
     summary: "Wanted an emailed Invisalign quote to compare clinics; went elsewhere.",
     thread: [
@@ -174,7 +174,7 @@ const LEADS: SeedLead[] = [
 
   // ── 11. Missed / no-show ──
   {
-    first: "Noah", last: "Patel", email: "noah.p@example.com", source: "website", status: "booked",
+    first: "Noah", last: "Patel", email: "noah.patel@gmail.com", source: "website", status: "booked",
     service: "Kids Dentistry", intent: "kids",
     summary: "Booked a kids checkup; no-show on the day.",
     thread: [
@@ -186,7 +186,7 @@ const LEADS: SeedLead[] = [
 
   // ── 12. Spam filtered ──
   {
-    first: "SEO", last: "Growth Team", email: "hello@rankboost-agency.example", source: "email", status: "spam",
+    first: "SEO", last: "Growth Team", email: "growth@rankboost-media.co", source: "email", status: "spam",
     service: "Other", intent: "spam",
     summary: "Not a patient inquiry.",
     thread: [{ dir: "in", ago: 40, subject: "Rank #1 on Google for 'dentist Calgary'", body: "We help dental clinics get more patients with our proven SEO packages. Reply to claim your free audit! Unsubscribe here." }],
@@ -197,18 +197,18 @@ type SeedAppt = { name: string; email: string; service: string; day: number; hou
 
 /** extra appointments for patients who didn't come through a lead (walk-ins, recalls) */
 const EXTRA_APPOINTMENTS: SeedAppt[] = [
-  { name: "Hassan Malik", email: "hassan.m@example.com", service: "The Essentials", day: -6, hour: 9, mins: 60, status: "completed", via: "dashboard" },
-  { name: "Grace Kim", email: "grace.k@example.com", service: "The Essentials", day: -5, hour: 11, status: "completed", via: "dashboard" },
-  { name: "Olivia Chen", email: "olivia.c@example.com", service: "Dental Work", day: -2, hour: 13, mins: 90, status: "completed", via: "dashboard", notes: "Filling, lower right" },
-  { name: "Jake Morrison (child)", email: "jake.m@example.com", service: "Kids Dentistry", day: 0, hour: 10, via: "dashboard" },
-  { name: "Ethan Brooks", email: "ethan.b@example.com", service: "The Essentials", day: 0, hour: 14, via: "dashboard" },
-  { name: "Mia Fischer", email: "mia.f@example.com", service: "Invisalign", day: 0, hour: 16, via: "dashboard", notes: "Aligner check-in" },
-  { name: "Liam Hughes", email: "liam.h@example.com", service: "Dental Work", day: 1, hour: 9, mins: 90, via: "dashboard", notes: "Crown prep" },
-  { name: "Zara Ahmed", email: "zara.a@example.com", service: "The Essentials", day: 1, hour: 11, via: "dashboard" },
-  { name: "Ben Carter (child)", email: "ben.c@example.com", service: "Kids Dentistry", day: 2, hour: 10, via: "dashboard" },
-  { name: "Isabella Rossi", email: "isabella.r@example.com", service: "Invisalign", day: 3, hour: 11, via: "patient_link" },
-  { name: "Owen Murphy", email: "owen.m@example.com", service: "The Essentials", day: 4, hour: 15, via: "dashboard" },
-  { name: "Ava Thompson", email: "ava.t@example.com", service: "Dental Work", day: 6, hour: 9, mins: 60, via: "patient_link" },
+  { name: "Hassan Malik", email: "hassan.malik@gmail.com", service: "The Essentials", day: -6, hour: 9, mins: 60, status: "completed", via: "dashboard" },
+  { name: "Grace Kim", email: "grace.kim@hotmail.com", service: "The Essentials", day: -5, hour: 11, status: "completed", via: "dashboard" },
+  { name: "Olivia Chen", email: "olivia.chen@gmail.com", service: "Dental Work", day: -2, hour: 13, mins: 90, status: "completed", via: "dashboard", notes: "Filling, lower right" },
+  { name: "Jake Morrison (child)", email: "jake.morrison@shaw.ca", service: "Kids Dentistry", day: 0, hour: 10, via: "dashboard" },
+  { name: "Ethan Brooks", email: "ethan.brooks@gmail.com", service: "The Essentials", day: 0, hour: 14, via: "dashboard" },
+  { name: "Mia Fischer", email: "mia.fischer@outlook.com", service: "Invisalign", day: 0, hour: 16, via: "dashboard", notes: "Aligner check-in" },
+  { name: "Liam Hughes", email: "liam.hughes@telus.net", service: "Dental Work", day: 1, hour: 9, mins: 90, via: "dashboard", notes: "Crown prep" },
+  { name: "Zara Ahmed", email: "zara.ahmed@gmail.com", service: "The Essentials", day: 1, hour: 11, via: "dashboard" },
+  { name: "Ben Carter (child)", email: "ben.carter@yahoo.ca", service: "Kids Dentistry", day: 2, hour: 10, via: "dashboard" },
+  { name: "Isabella Rossi", email: "isabella.rossi@gmail.com", service: "Invisalign", day: 3, hour: 11, via: "patient_link" },
+  { name: "Owen Murphy", email: "owen.murphy@icloud.com", service: "The Essentials", day: 4, hour: 15, via: "dashboard" },
+  { name: "Ava Thompson", email: "ava.thompson@gmail.com", service: "Dental Work", day: 6, hour: 9, mins: 60, via: "patient_link" },
 ];
 
 export function loadSampleData() {

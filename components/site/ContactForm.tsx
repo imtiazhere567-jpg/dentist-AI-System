@@ -94,7 +94,7 @@ export function ContactForm() {
       <div className="mt-6 grid gap-6 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="email">Email Address</label>
-          <input id="email" name="email" type="email" required className="input" placeholder="email@example.com" />
+          <input id="email" name="email" type="email" required className="input" placeholder="you@gmail.com" />
         </div>
         <div>
           <label className="label" htmlFor="phone">Phone (optional)</label>
